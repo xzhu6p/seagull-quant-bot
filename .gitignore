@@ -1,0 +1,9 @@
+# API Key 敏感信息，请勿提交（只排除真实配置）
+config.json
+state.json
+logs/*.log
+__pycache__/
+*.pyc
+.venv/
+.idea/
+.vscode/

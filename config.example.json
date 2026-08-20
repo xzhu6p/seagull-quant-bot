@@ -1,0 +1,34 @@
+{
+  "exchange": "binance",
+  "api_key": "",
+  "secret_key": "",
+  "passphrase": "",
+  "testnet": true,
+  "simulated": true,
+  "inst_ids": ["BTC-USDT-SWAP", "ETH-USDT-SWAP"],
+  "bar": "15m",
+  "poll_interval": 30,
+  "paper_equity": 10000,
+  "strategy": {
+    "fast_ema": 50,
+    "macd_fast": 12,
+    "macd_slow": 26,
+    "macd_signal": 9,
+    "atr_period": 14,
+    "min_body_ratio": 0.45,
+    "sl_atr": 1.5,
+    "tp_atr": 2.0,
+    "use_trailing": true,
+    "trailing_start_atr": 1.0,
+    "trailing_dist_atr": 0.8,
+    "notional_per_order": 100,
+    "reduced_notional": 0,
+    "max_open_instruments": 3,
+    "max_daily_loss_usd": 45,
+    "losing_streak_to_reduce": 2
+  },
+  "risk": {
+    "leverage": 3,
+    "td_mode": "isolated"
+  }
+}
