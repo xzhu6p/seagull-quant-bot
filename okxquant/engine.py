@@ -64,6 +64,8 @@ class SeagullEngine:
     ) -> None:
         self.cfg = cfg
         self.paper = paper
+        self._running = False
+        self._started_at: float = 0.0
         self.bar: str = cfg.get("bar", "15m")
         self.bar_sec = bar_seconds(self.bar)
         self.poll_interval: int = int(cfg.get("poll_interval", 30))
@@ -119,6 +121,13 @@ class SeagullEngine:
     # ==================================================================
     # 主循环
     # ==================================================================
+    def is_running(self) -> bool:
+        """供 Web 端查询引擎是否存活。"""
+        return self._running
+
+    def _uptime_s(self) -> int:
+        return int(time.time() - self._started_at) if self._started_at else 0
+
     def run(self) -> None:
         exchange = self.cfg.get("exchange", "okx").upper()
         if self.paper:
@@ -135,6 +144,8 @@ class SeagullEngine:
                     self.cfg.get("strategy", {}).get("notional_per_order", 100),
                     self.max_open)
         logger.info("=" * 62)
+        self._running = True
+        self._started_at = time.time()
         try:
             while True:
                 started = time.time()

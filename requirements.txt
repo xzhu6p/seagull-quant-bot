@@ -3,3 +3,5 @@ websocket-client>=1.6
 pandas>=1.5
 numpy>=1.23
 matplotlib>=3.6
+fastapi>=0.104
+uvicorn[standard]>=0.24

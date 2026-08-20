@@ -2,17 +2,15 @@
 Seagull × 多平台永续合约机器人入口。
 
 用法：
-  python main.py --config config.json           # 按 config.exchange 路由（okx/binance）
-  python main.py --config config.json --paper   # 纸面模式：真实公开行情 + 本地撮合
+  python main.py --config config.json           # 实盘/模拟盘 + Web 仪表盘（默认）
+  python main.py --config config.json --paper   # 纸面模式 + Web 仪表盘
+  python main.py --config config.json --no-web  # 关闭 Web 仪表盘（纯命令行运行）
   python main.py --demo 60                      # 演示：模拟行情跑 60 个周期（无需API）
 
-首次使用请务必：
-  1. config.json 填入 API Key
-     - 币安：开通测试网 https://testnet.binancefuture.com，保持 testnet=true
-     - OKX：开通模拟盘 Demo Trading，保持 simulated=true
-  2. 用 backtest.py 验证参数后，再考虑实盘（风险自担）
-
-⚠️ 切勿在公开聊天/代码仓库中泄露 API Key！若已泄露立即重置。
+部署到 Railway/Heroku 风格平台时：
+  - 默认会自动监听 PORT 环境变量（通常是 8080）
+  - 浏览器访问 http://<host>:<PORT>/  查看仪表盘
+  - /health 端点是平台健康检查（必须返回 200）
 """
 from __future__ import annotations
 
@@ -40,6 +38,7 @@ def setup_logging(log_dir: str = "logs") -> None:
 
 
 def load_config(path: str) -> dict:
+    """从 config.json 加载，环境变量覆盖敏感字段（部署到 PaaS 时不必把密钥写进文件）。"""
     if not os.path.exists(path):
         sample = {
             "exchange": "binance",
@@ -59,13 +58,36 @@ def load_config(path: str) -> dict:
                 "losing_streak_to_reduce": 2,
             },
             "risk": {"leverage": 3, "td_mode": "isolated"},
+            "web": {"enabled": True, "port": None},
         }
         with open(path, "w", encoding="utf-8") as f:
             json.dump(sample, f, indent=2, ensure_ascii=False)
         print(f"未找到配置，已生成示例配置 {path}，请填入 API Key 后重试")
         sys.exit(1)
     with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
+        cfg = json.load(f)
+
+    # 环境变量覆盖（PaaS 部署的标准做法：密钥不进代码仓库）
+    env_map = {
+        "API_KEY":     ("api_key",      str),
+        "SECRET_KEY":  ("secret_key",   str),
+        "PASSPHRASE":  ("passphrase",   str),
+        "EXCHANGE":    ("exchange",     str),
+        "TESTNET":     ("testnet",      lambda x: x.lower() in ("1", "true", "yes", "on")),
+        "SIMULATED":   ("simulated",    lambda x: x.lower() in ("1", "true", "yes", "on")),
+        "BAR":         ("bar",          str),
+        "POLL_INTERVAL": ("poll_interval", int),
+        "INST_IDS":    ("inst_ids",     lambda x: [s.strip() for s in x.split(",") if s.strip()]),
+    }
+    for env_k, (cfg_k, cast) in env_map.items():
+        v = os.environ.get(env_k)
+        if v is not None and v != "":
+            try:
+                cfg[cfg_k] = cast(v)
+            except Exception:  # noqa: BLE001
+                pass
+
+    return cfg
 
 
 def main() -> None:
@@ -75,6 +97,8 @@ def main() -> None:
                     help="纸面模式：拉真实公开行情但本地撮合，不真实下单")
     ap.add_argument("--demo", type=int, default=0, metavar="N",
                     help="演示模式：模拟行情连续跑 N 个周期（无需 API Key）")
+    ap.add_argument("--no-web", action="store_true",
+                    help="关闭 Web 仪表盘（纯命令行运行）")
     args = ap.parse_args()
 
     setup_logging()
@@ -91,6 +115,7 @@ def main() -> None:
     engine = SeagullEngine(cfg, paper=paper, state_file="state.json")
 
     if demo:
+        # 演示模式不启 Web，纯跑完退出
         logger.info("演示模式：模拟行情推进 %d 个周期……", args.demo)
         for i in range(args.demo):
             engine._tick()
@@ -107,6 +132,15 @@ def main() -> None:
             )
         logger.info("=" * 56)
     else:
+        # 启动 Web 仪表盘（默认开启；--no-web 关闭）
+        web_cfg = cfg.get("web", {})
+        if web_cfg.get("enabled", True) and not args.no_web:
+            try:
+                from okxquant.web import start_web_server
+                start_web_server(engine, port=web_cfg.get("port"))
+            except Exception as e:  # noqa: BLE001
+                logger.warning("Web 仪表盘启动失败（不影响交易）: %s", e)
+
         engine.run()
 
 
